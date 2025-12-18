@@ -44,12 +44,15 @@ def joystickd_thread():
 
     if not should_reset_joystick:
       joystick_axes = sm['testJoystick'].axes
+      if hasattr(sm['testJoystick'], 'buttons') and sm['testJoystick'].buttons and sm['testJoystick'].buttons[0] == 1:
+        CC.cruiseControl.cancel = True
     else:
       joystick_axes = [0.0, 0.0]
 
     if CC.longActive:
       actuators.accel = 4.0 * float(np.clip(joystick_axes[0], -1, 1))
       actuators.longControlState = LongCtrlState.pid if sm['carState'].vEgo > CP.vEgoStopping else LongCtrlState.stopping
+      CC.cruiseControl.resume = actuators.accel > 0.0
 
     if CC.latActive:
       max_curvature = MAX_LAT_ACCEL / max(sm['carState'].vEgo ** 2, 5)
@@ -65,7 +68,7 @@ def joystickd_thread():
       except Exception:
           pass  # Fall back to the existing max_angle if anything goes wrong
 
-      max_angle = min(max_angle, 390)  # Still keep the PSA limit as a hard cap
+      max_angle = min(max_angle, 390)  # keep the PSA limit as a hard cap
 
       actuators.torque = float(np.clip(joystick_axes[1], -1, 1))
       actuators.steeringAngleDeg, actuators.curvature = actuators.torque * max_angle, actuators.torque * -max_curvature
