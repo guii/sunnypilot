@@ -28,6 +28,7 @@ from websocket import (ABNF, WebSocket, WebSocketException, WebSocketTimeoutExce
                        create_connection, WebSocketConnectionClosedException)
 
 import cereal.messaging as messaging
+from openpilot.sunnypilot.selfdrive.car.sync_car_list_param import update_car_list_param
 from openpilot.sunnypilot.sunnylink.api import SunnylinkApi
 from openpilot.sunnypilot.sunnylink.utils import sunnylink_need_register, sunnylink_ready, get_param_as_byte, save_param_from_base64_encoded_string
 
@@ -40,6 +41,46 @@ DISALLOW_LOG_UPLOAD = threading.Event()
 METADATA_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "params_metadata.json")
 
 params = Params()
+
+# Parameters that should never be remotely modified
+ALWAYS_BLOCKED_PARAMS = {
+  "GithubSshKeys",
+  "GithubUsername",
+  "SunnylinkAllowSensitiveWrite",
+}
+
+# Parameters blocked by default, but can be unlocked via SunnylinkAllowSensitiveWrite toggle
+SENSITIVE_PARAMS = {
+  # SSH/Authentication
+  "SshEnabled",
+  "AdbEnabled",
+  "EnableCopyparty",
+  "GsmApn",
+
+  # Remote code execution
+  "EnableGithubRunner",
+  "DisableUpdates",
+
+  # Require physical presence
+  "LongitudinalManeuverMode",
+  "JoystickDebugMode",
+
+  # Privacy
+  "RecordFront",
+  "RecordAudio",
+  "RecordAudioFeedback",
+  "EnableSunnylinkUploader",
+
+  # Identity
+  "SunnylinkDongleId",
+  "DongleId",
+  "AccessToken",
+
+  # Legal
+  "HasAcceptedTerms",
+  "CompletedTrainingVersion",
+}
+
 
 
 def handle_long_poll(ws: WebSocket, exit_event: threading.Event | None) -> None:
@@ -246,7 +287,24 @@ def getParams(params_keys: list[str], compression: bool = False) -> str | dict[s
 
 @dispatcher.add_method
 def saveParams(params_to_update: dict[str, str], compression: bool = False) -> None:
+  is_engaged = params.get_bool("IsEngaged")
+  allow_sensitive = params.get_bool("SunnylinkAllowSensitiveWrite")
+
   for key, value in params_to_update.items():
+    if key in ALWAYS_BLOCKED_PARAMS:
+      cloudlog.warning(f"sunnylinkd.saveParams.always_blocked: Attempted to modify '{key}'")
+      continue
+
+    # Block sensitive params unless toggle is enabled
+    if key in SENSITIVE_PARAMS and not allow_sensitive:
+      cloudlog.warning(f"sunnylinkd.saveParams.sensitive_blocked: Attempted to modify '{key}'")
+      continue
+
+    # Block all params while engaged
+    if is_engaged:
+      cloudlog.warning(f"sunnylinkd.saveParams.blocked_engaged: Attempted to modify '{key}' while engaged")
+      continue
+
     try:
       save_param_from_base64_encoded_string(key, value, compression)
     except Exception as e:
@@ -278,6 +336,8 @@ def main(exit_event: threading.Event = None):
   sunnylink_dongle_id = params.get("SunnylinkDongleId")
   sunnylink_api = SunnylinkApi(sunnylink_dongle_id)
   UploadQueueCache.initialize(upload_queue)
+
+  update_car_list_param()
 
   ws_uri = f"{SUNNYLINK_ATHENA_HOST}"
   conn_start = None
