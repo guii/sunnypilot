@@ -12,6 +12,7 @@ from openpilot.system.ui.lib.multilang import tr
 from openpilot.system.ui.sunnypilot.widgets.sunnylink_pairing_dialog import SunnylinkPairingDialog
 from openpilot.system.ui.widgets.button import ButtonStyle, Button
 from openpilot.system.ui.widgets.confirm_dialog import alert_dialog, ConfirmDialog
+from openpilot.system.ui.sunnypilot.widgets.html_render import HtmlModalSP
 from openpilot.system.ui.widgets.label import UnifiedLabel
 from openpilot.system.ui.widgets.list_view import button_item, dual_button_item
 from openpilot.system.ui.widgets.scroller_tici import Scroller, LineSeparator
@@ -209,8 +210,8 @@ class SunnylinkLayout(Widget):
     return items
 
   @staticmethod
-  def _get_sunnylink_dongle_id() -> str | None:
-    return str(ui_state.params.get("SunnylinkDongleId") or (lambda: tr("N/A")))
+  def _get_sunnylink_dongle_id() -> str:
+    return ui_state.params.get("SunnylinkDongleId") or tr("N/A")
 
   def _handle_pair_btn(self, sponsor_pairing: bool = False):
     sunnylink_dongle_id = self._get_sunnylink_dongle_id()
@@ -302,18 +303,30 @@ class SunnylinkLayout(Widget):
       self._restore_btn.set_text(tr("Restore Settings"))
 
   def _sunnylink_toggle_callback(self, state: bool):
-    if state:
-      description = tr(
-        "Welcome back!! We're excited to see you've enabled sunnylink again!")
-      color = rl.Color(0, 255, 0, 255)  # Green
-    else:
-      description = ("😢 " + tr("Not going to lie, it's sad to see you disabled sunnylink") +
-                     tr(", but we'll be here when you're ready to come back."))
-      color = rl.Color(255, 165, 0, 255)  # Orange
-    self._sunnylink_description.set_text(description)
-    self._sunnylink_description.set_color(color)
-    self._sunnylink_description.set_visible(True)
-    self._sunnylink_toggle.show_description(False)
+    if not state:
+      # Disabling doesn't need confirmation
+      ui_state.params.put_bool("SunnylinkEnabled", False)
+      return
+
+    # Revert toggle until confirmed
+    self._sunnylink_toggle.action_item.set_state(False)
+    ui_state.params.put_bool("SunnylinkEnabled", False)
+
+    def on_confirm(result):
+      if result == DialogResult.CONFIRM:
+        ui_state.params.put_bool("SunnylinkEnabled", True)
+        self._sunnylink_toggle.action_item.set_state(True)
+
+    warning_text = (
+      f"<b>{tr('Privacy Notice')}</b><br><br>"
+      f"{tr('Sunnylink admins can potentially access:')}<br>"
+      f"• {tr('All device settings')}<br>"
+      f"• {tr('Location, routes, device state and settings and github user id')}<br>"
+      f"{tr('Data may be linked to your GitHub account and e-mail if paired.')}"
+    )
+
+    dialog = HtmlModalSP(text=warning_text, callback=on_confirm)
+    gui_app.set_modal_overlay(dialog)
 
   def _update_state(self):
     super()._update_state()
