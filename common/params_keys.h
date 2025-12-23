@@ -173,6 +173,7 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"ShowAdvancedControls", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"ShowTurnSignals", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"StandstillTimer", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"sunnypilot_ui", {PERSISTENT, BOOL, "1"}},
     {"TrueVEgoUI", {PERSISTENT | BACKUP, BOOL, "0"}},
 
     // MADS params
@@ -188,6 +189,15 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"ModelManager_Favs", {PERSISTENT | BACKUP, STRING}},
     {"ModelManager_LastSyncTime", {CLEAR_ON_MANAGER_START | CLEAR_ON_OFFROAD_TRANSITION, INT, "0"}},
     {"ModelManager_ModelsCache", {PERSISTENT | BACKUP, JSON}},
+
+    // Navigation params
+    {"AllowNavigation", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"MapboxFavorites", {PERSISTENT | BACKUP, STRING}},
+    {"MapboxToken", {PERSISTENT | BACKUP, STRING}},
+    {"MapboxSettings", {CLEAR_ON_MANAGER_START, JSON}},
+    {"MapboxRoute", {PERSISTENT, STRING}},
+    {"MapboxRecompute", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"NavDesiresAllowed", {PERSISTENT | BACKUP, BOOL, "0"}},
 
     // Neural Network Lateral Control
     {"NeuralNetworkLateralControl", {PERSISTENT | BACKUP, BOOL, "0"}},
